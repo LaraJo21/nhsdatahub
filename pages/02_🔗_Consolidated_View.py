@@ -27,23 +27,122 @@ def get_openprescribing_data(endpoint, params=None):
         return None
 
 @st.cache_data(ttl=3600)
-def search_drugs(query):
-    """Search for drugs in OpenPrescribing"""
-    # This is a simplified search - in reality you'd use their BNF codes
-    common_drugs = {
-        'adalimumab': '0212000AA',
-        'infliximab': '0212000AC', 
-        'rituximab': '0801020T0',
-        'trastuzumab': '0801020Q0',
-        'etanercept': '0212000AB',
-        'metformin': '0601022B0',
-        'atorvastatin': '0212000Y0',
-        'ramipril': '0205051R0'
+def get_bnf_lookup():
+    """Comprehensive BNF code lookup"""
+    return {
+        # Cardiovascular System (02)
+        'ramipril': ('0205051R0', 'ACE Inhibitor'),
+        'amlodipine': ('0206020A0', 'Calcium Channel Blocker'),
+        'atorvastatin': ('0212000Y0', 'Statin'),
+        'simvastatin': ('0212000X0', 'Statin'),
+        'warfarin': ('0208020W0', 'Anticoagulant'),
+        'clopidogrel': ('0209000C0', 'Antiplatelet'),
+        
+        # Central Nervous System (04)
+        'paracetamol': ('0407010Q0', 'Analgesic'),
+        'morphine': ('0407020Q0', 'Opioid Analgesic'),
+        'tramadol': ('0407020T0', 'Opioid Analgesic'),
+        'sertraline': ('0403030S0', 'SSRI Antidepressant'),
+        'fluoxetine': ('0403030F0', 'SSRI Antidepressant'),
+        'lorazepam': ('0401020L0', 'Benzodiazepine'),
+        
+        # Infections (05)
+        'amoxicillin': ('0501013B0', 'Penicillin Antibiotic'),
+        'flucloxacillin': ('0501011F0', 'Penicillin Antibiotic'),
+        'ciprofloxacin': ('0501040C0', 'Quinolone Antibiotic'),
+        'metronidazole': ('0501040M0', 'Antibiotic'),
+        
+        # Endocrine System (06)
+        'metformin': ('0601022B0', 'Diabetes - Biguanide'),
+        'insulin': ('0601010H0', 'Diabetes - Insulin'),
+        'gliclazide': ('0601021G0', 'Diabetes - Sulfonylurea'),
+        'levothyroxine': ('0602010L0', 'Thyroid Hormone'),
+        'prednisolone': ('0603020P0', 'Corticosteroid'),
+        
+        # Gastro-Intestinal System (01)
+        'omeprazole': ('0103050P0', 'Proton Pump Inhibitor'),
+        'lansoprazole': ('0103050L0', 'Proton Pump Inhibitor'),
+        'ranitidine': ('0103020R0', 'H2 Receptor Antagonist'),
+        'loperamide': ('0104020L0', 'Anti-diarrhoeal'),
+        
+        # Respiratory System (03)
+        'salbutamol': ('0301011R0', 'Beta2 Agonist'),
+        'beclometasone': ('0302000N0', 'Corticosteroid'),
+        'prednisolone': ('0302020P0', 'Oral Corticosteroid'),
+        
+        # Immunological Products (08) - High-cost biologics
+        'adalimumab': ('0212000AA', 'TNF Alpha Inhibitor'),
+        'infliximab': ('0212000AC', 'TNF Alpha Inhibitor'),
+        'etanercept': ('0212000AB', 'TNF Alpha Inhibitor'),
+        'rituximab': ('0801020T0', 'Monoclonal Antibody'),
+        'trastuzumab': ('0801020Q0', 'Monoclonal Antibody'),
+        'bevacizumab': ('0801020B0', 'Monoclonal Antibody'),
+        
+        # Nutrition and Blood (09)
+        'folic acid': ('0906011F0', 'Vitamin B9'),
+        'iron sulfate': ('0901011I0', 'Iron Supplement'),
+        'vitamin d': ('0906060V0', 'Vitamin D'),
+        
+        # Musculoskeletal (10)
+        'ibuprofen': ('1001010I0', 'NSAID'),
+        'diclofenac': ('1001010D0', 'NSAID'),
+        'naproxen': ('1001010N0', 'NSAID'),
+        'allopurinol': ('1003020A0', 'Uric Acid Reducer'),
+        
+        # Eye (11)
+        'chloramphenicol': ('1103010C0', 'Antibiotic Eye Drops'),
+        'timolol': ('1106020T0', 'Glaucoma Treatment'),
+        
+        # ENT (12)
+        'sodium chloride': ('1201010S0', 'Nasal Decongestant'),
+        
+        # Skin (13)
+        'hydrocortisone': ('1303020H0', 'Topical Corticosteroid'),
+        'emollient': ('1301020E0', 'Skin Moisturizer')
     }
+
+@st.cache_data(ttl=3600)
+def search_drugs(query):
+    """Search for drugs using BNF lookup or direct BNF code"""
+    bnf_lookup = get_bnf_lookup()
     
+    # Check if query is a BNF code (10 characters, alphanumeric)
+    if len(query) == 10 and query.replace('A', '').replace('B', '').replace('C', '').replace('D', '').replace('E', '').replace('F', '').replace('G', '').replace('H', '').replace('I', '').replace('J', '').replace('K', '').replace('L', '').replace('M', '').replace('N', '').replace('O', '').replace('P', '').replace('Q', '').replace('R', '').replace('S', '').replace('T', '').replace('U', '').replace('V', '').replace('W', '').replace('X', '').replace('Y', '').replace('Z', '').isdigit():
+        # Find drug name by BNF code
+        for name, (code, category) in bnf_lookup.items():
+            if code.upper() == query.upper():
+                return [(name, code, category)]
+        return [("Unknown Drug", query.upper(), "Direct BNF Code")]
+    
+    # Search by drug name
     query_lower = query.lower()
-    matches = [(name, code) for name, code in common_drugs.items() if query_lower in name]
+    matches = []
+    for name, (code, category) in bnf_lookup.items():
+        if query_lower in name.lower():
+            matches.append((name, code, category))
+    
     return matches
+
+@st.cache_data(ttl=3600)
+def get_bnf_categories():
+    """Get BNF chapter information"""
+    return {
+        '01': 'Gastro-Intestinal System',
+        '02': 'Cardiovascular System', 
+        '03': 'Respiratory System',
+        '04': 'Central Nervous System',
+        '05': 'Infections',
+        '06': 'Endocrine System',
+        '07': 'Obstetrics, Gynaecology, and Urinary-Tract Disorders',
+        '08': 'Malignant Disease and Immunosuppression',
+        '09': 'Nutrition and Blood',
+        '10': 'Musculoskeletal and Joint Diseases',
+        '11': 'Eye',
+        '12': 'Ear, Nose, and Oropharynx',
+        '13': 'Skin',
+        '14': 'Immunological Products and Vaccines',
+        '15': 'Anaesthesia'
+    }
 
 @st.cache_data(ttl=3600)
 def get_drug_spending_by_icb(bnf_code, months=12):
@@ -85,18 +184,25 @@ def get_total_spending_trend(bnf_code, months=24):
         return df
     return pd.DataFrame()
 
-# Main interface
-st.markdown("---")
-st.header("🔍 NHS Drug Data Explorer")
+# Cache management
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown("---")
+    st.header("🔍 NHS Drug Data Explorer")
+with col2:
+    st.markdown("<br>", unsafe_allow_html=True)  # Add space
+    if st.button("🔄 Clear Cache", help="Refresh all cached data"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Data will be refreshed on next search.")
 
 # Drug search interface
 col1, col2 = st.columns([2, 1])
 
 with col1:
     drug_query = st.text_input(
-        "🔍 Search for a drug:", 
-        placeholder="e.g., adalimumab, metformin, atorvastatin",
-        help="Search for any drug to see NHS prescribing data"
+        "🔍 Search for a drug or BNF code:", 
+        placeholder="e.g., adalimumab, metformin, 0601022B0",
+        help="Search by drug name or enter a 10-character BNF code directly"
     )
 
 with col2:
@@ -138,12 +244,25 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
         matches = search_drugs(query)
         
         if matches:
-            drug_name, bnf_code = matches[0]  # Take first match
+            drug_name, bnf_code, category = matches[0]  # Take first match
             
-            st.success(f"✅ Found: **{drug_name.title()}** (BNF Code: {bnf_code})")
+            # Display drug information
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.success(f"✅ **{drug_name.title()}**")
+            with col2:
+                st.info(f"**BNF:** {bnf_code}")
+            with col3:
+                st.info(f"**Category:** {category}")
+            
+            # BNF Chapter information
+            chapter = bnf_code[:2]
+            bnf_categories = get_bnf_categories()
+            if chapter in bnf_categories:
+                st.markdown(f"📖 **BNF Chapter {chapter}:** {bnf_categories[chapter]}")
             
             # Create tabs for different views
-            tab1, tab2, tab3 = st.tabs(["📊 Spending Overview", "🗺️ Regional Analysis", "📈 Trends"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Spending Overview", "🗺️ Regional Analysis", "📈 Trends", "📋 BNF Info"])
             
             with tab1:
                 st.subheader(f"💰 {drug_name.title()} Spending Overview")
@@ -280,6 +399,70 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                     
                 else:
                     st.warning("Insufficient trend data available for analysis.")
+            
+            with tab4:
+                st.subheader(f"📋 BNF Information - {drug_name.title()}")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 🔢 BNF Code Breakdown")
+                    st.code(f"""
+BNF Code: {bnf_code}
+
+Chapter:     {bnf_code[:2]} - {bnf_categories.get(bnf_code[:2], 'Unknown')}
+Section:     {bnf_code[:4]}
+Subsection:  {bnf_code[:6]}  
+Paragraph:   {bnf_code[:7]}
+Chemical:    {bnf_code[:9]}
+Product:     {bnf_code}
+                    """)
+                
+                with col2:
+                    st.markdown("### 📖 Drug Classification")
+                    st.write(f"**Primary Category:** {category}")
+                    st.write(f"**Generic Name:** {drug_name.title()}")
+                    
+                    # Additional info based on category
+                    if "TNF Alpha Inhibitor" in category:
+                        st.info("🔬 **High-cost biologic** used for autoimmune conditions like rheumatoid arthritis, inflammatory bowel disease")
+                    elif "Statin" in category:
+                        st.info("💊 **Cholesterol-lowering medication** for cardiovascular disease prevention")
+                    elif "Diabetes" in category:
+                        st.info("🩺 **Diabetes medication** for blood glucose control")
+                    elif "Antibiotic" in category:
+                        st.info("🦠 **Antimicrobial medication** for treating bacterial infections")
+                
+                # BNF Chapter overview
+                st.markdown("### 📚 BNF Chapter Overview")
+                chapter_info = {
+                    '01': 'Includes antacids, antiemetics, laxatives, antidiarrhoeals',
+                    '02': 'Includes ACE inhibitors, beta blockers, diuretics, statins',
+                    '03': 'Includes bronchodilators, corticosteroids, antihistamines',
+                    '04': 'Includes analgesics, antidepressants, antiepileptics',
+                    '05': 'Includes antibiotics, antifungals, antivirals',
+                    '06': 'Includes diabetes medications, thyroid hormones, corticosteroids',
+                    '08': 'Includes cytotoxic drugs, immunosuppressants, biologics',
+                    '09': 'Includes vitamins, minerals, blood products',
+                    '10': 'Includes NSAIDs, disease-modifying drugs, muscle relaxants'
+                }
+                
+                if chapter in chapter_info:
+                    st.write(chapter_info[chapter])
+                
+                # Quick BNF search
+                st.markdown("### 🔍 Quick BNF Search")
+                other_drugs_in_chapter = [(name, code, cat) for name, (code, cat) in get_bnf_lookup().items() if code.startswith(chapter) and name != drug_name]
+                
+                if other_drugs_in_chapter:
+                    st.write(f"**Other drugs in Chapter {chapter}:**")
+                    for name, code, cat in other_drugs_in_chapter[:5]:  # Show first 5
+                        if st.button(f"🔍 {name.title()}", key=f"related_{name}"):
+                            st.session_state.current_drug = name
+                            st.rerun()
+                    
+                    if len(other_drugs_in_chapter) > 5:
+                        st.write(f"...and {len(other_drugs_in_chapter) - 5} more")
                     
         else:
             st.error(f"❌ Drug '{query}' not found in our database. Try: adalimumab, infliximab, metformin, atorvastatin")
