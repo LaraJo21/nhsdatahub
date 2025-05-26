@@ -43,16 +43,10 @@ def get_page_context():
             context["user_selections"]["search_performed"] = True
             context["current_data_summary"] += f" - Search was performed"
             
-        # Look for any API data that might be loaded
-        api_data_found = []
-        for key in ['spending_df', 'icb_df', 'trend_df']:
-            if hasattr(st.session_state, key):
-                df = getattr(st.session_state, key)
-                if isinstance(df, pd.DataFrame) and not df.empty:
-                    api_data_found.append(f"{key}: {df.shape[0]} rows, columns: {list(df.columns)}")
-        
-        if api_data_found:
-            context["current_data_summary"] += f" - API data loaded: {'; '.join(api_data_found)}"
+        # Look for detailed analysis data
+        if hasattr(st.session_state, 'current_analysis'):
+            context["detailed_analysis"] = st.session_state.current_analysis
+            context["current_data_summary"] += f" - Detailed analysis available"
             
         # Add any dataframes in session state
         data_summary = []
