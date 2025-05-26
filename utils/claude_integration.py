@@ -43,10 +43,10 @@ def get_page_context():
             context["user_selections"]["search_performed"] = True
             context["current_data_summary"] += f" - Search was performed"
             
-        # Look for detailed analysis data
-        if hasattr(st.session_state, 'current_analysis'):
-            context["detailed_analysis"] = st.session_state.current_analysis
-            context["current_data_summary"] += f" - Detailed analysis available"
+        # Look for comprehensive analysis data
+        if hasattr(st.session_state, 'comprehensive_context'):
+            context["comprehensive_analysis"] = st.session_state.comprehensive_context
+            context["current_data_summary"] = "Comprehensive drug analysis with 3-year trends, regional benchmarking, and seasonal patterns available"
             
         # Add any dataframes in session state
         data_summary = []
