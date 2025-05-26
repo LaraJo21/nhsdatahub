@@ -401,11 +401,45 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
         # Search for the drug
         matches = search_drugs(query)
         
+        # Debug: Show what we found
+        st.write("🔍 DEBUG: Search matches found:", matches)
+        
         if matches:
             drug_name, bnf_code, category = matches[0]  # Take first match
             
+            # Debug: Show what we're using
+            st.write(f"🔍 DEBUG: Using BNF code '{bnf_code}' for '{drug_name}'")
+            
+            # Debug: Test the API URL
+            test_url = f"https://openprescribing.net/api/1.0/spending/?code={bnf_code}&format=json"
+            st.write(f"🔍 DEBUG: API URL: {test_url}")
+            
+            # Debug: Test the API call directly
+            try:
+                import requests
+                response = requests.get(test_url, timeout=10)
+                st.write(f"🔍 DEBUG: API Response Status: {response.status_code}")
+                if response.status_code == 200:
+                    data = response.json()
+                    st.write(f"🔍 DEBUG: API returned {len(data)} records")
+                    if data:
+                        st.write(f"🔍 DEBUG: Sample data: {data[0]}")
+                else:
+                    st.write(f"🔍 DEBUG: API Error: {response.text}")
+            except Exception as e:
+                st.write(f"🔍 DEBUG: API Exception: {str(e)}")
+            
             # Get enhanced analysis for Claude
             with st.spinner("🔍 Gathering comprehensive data..."):
+                enhanced_analysis = get_enhanced_drug_analysis(bnf_code, drug_name)
+                related_context = get_related_drugs_context(bnf_code)
+                
+                # Debug: Show what analysis we got
+                st.write("🔍 DEBUG: Enhanced analysis keys:", list(enhanced_analysis.keys()))
+                if 'trend_data' in enhanced_analysis:
+                    st.write("🔍 DEBUG: Trend data:", enhanced_analysis['trend_data'])
+                else:
+                    st.write("🔍 DEBUG: No trend data in analysis")
                 enhanced_analysis = get_enhanced_drug_analysis(bnf_code, drug_name)
                 related_context = get_related_drugs_context(bnf_code)
                 
