@@ -24,7 +24,8 @@ def get_page_context():
         "page": "Unknown",
         "data_displayed": "None",
         "charts_visible": [],
-        "user_selections": {}
+        "user_selections": {},
+        "current_data_summary": "No data visible"
     }
     
     # Get current page from URL or session state
@@ -36,22 +37,47 @@ def get_page_context():
         # Get any data currently being displayed
         if hasattr(st.session_state, 'current_drug'):
             context["user_selections"]["drug"] = st.session_state.current_drug
+            context["current_data_summary"] = f"User is viewing data for {st.session_state.current_drug}"
             
-        if hasattr(st.session_state, 'search_performed'):
-            context["user_selections"]["search_performed"] = st.session_state.search_performed
+        if hasattr(st.session_state, 'search_performed') and st.session_state.search_performed:
+            context["user_selections"]["search_performed"] = True
+            context["current_data_summary"] += f" - Search was performed"
+            
+        # Look for any API data that might be loaded
+        api_data_found = []
+        for key in ['spending_df', 'icb_df', 'trend_df']:
+            if hasattr(st.session_state, key):
+                df = getattr(st.session_state, key)
+                if isinstance(df, pd.DataFrame) and not df.empty:
+                    api_data_found.append(f"{key}: {df.shape[0]} rows, columns: {list(df.columns)}")
+        
+        if api_data_found:
+            context["current_data_summary"] += f" - API data loaded: {'; '.join(api_data_found)}"
             
         # Add any dataframes in session state
         data_summary = []
         for key, value in st.session_state.items():
             if isinstance(value, pd.DataFrame) and not value.empty:
-                data_summary.append({
+                # Get basic stats from dataframe
+                summary = {
                     "name": key,
                     "shape": value.shape,
                     "columns": list(value.columns) if len(value.columns) < 10 else list(value.columns[:10]) + ["..."]
-                })
+                }
+                
+                # Add sample data for context
+                if 'actual_cost' in value.columns:
+                    summary["latest_cost"] = f"£{value['actual_cost'].iloc[-1]:,.0f}" if not value.empty else "N/A"
+                if 'items' in value.columns:
+                    summary["latest_items"] = f"{value['items'].iloc[-1]:,.0f}" if not value.empty else "N/A"
+                if 'date' in value.columns:
+                    summary["date_range"] = f"{value['date'].min()} to {value['date'].max()}" if not value.empty else "N/A"
+                
+                data_summary.append(summary)
         
         if data_summary:
             context["data_displayed"] = data_summary
+            context["current_data_summary"] = f"Data visible: {len(data_summary)} datasets loaded"
             
     except Exception as e:
         context["error"] = f"Error getting context: {str(e)}"
