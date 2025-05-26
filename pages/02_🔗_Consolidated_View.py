@@ -289,7 +289,32 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 # Store data for Claude context
                 if not spending_df.empty:
                     st.session_state.current_spending_data = spending_df
-                    st.session_state.current_data_summary = f"{drug_name.title()} spending data: {len(spending_df)} months, latest cost £{spending_df['actual_cost'].iloc[-1]:,.0f}" if 'actual_cost' in spending_df.columns else f"{drug_name.title()} data loaded"
+                    
+                    # Give Claude detailed analysis data
+                    if 'actual_cost' in spending_df.columns and len(spending_df) >= 2:
+                        latest_cost = spending_df['actual_cost'].iloc[-1]
+                        previous_cost = spending_df['actual_cost'].iloc[-2]
+                        mom_change = ((latest_cost - previous_cost) / previous_cost) * 100
+                        
+                        # Get min/max for context
+                        min_cost = spending_df['actual_cost'].min()
+                        max_cost = spending_df['actual_cost'].max()
+                        avg_cost = spending_df['actual_cost'].mean()
+                        
+                        analysis_summary = f"""
+{drug_name.title()} Spending Analysis:
+- Latest Month: £{latest_cost:,.0f}
+- Previous Month: £{previous_cost:,.0f} 
+- Month-on-Month Change: {mom_change:+.1f}%
+- 12-Month Range: £{min_cost:,.0f} to £{max_cost:,.0f}
+- Average Monthly Spend: £{avg_cost:,.0f}
+- Total Months of Data: {len(spending_df)}
+- Trend Direction: {'Increasing' if mom_change > 5 else 'Decreasing' if mom_change < -5 else 'Stable'}
+"""
+                        
+                        st.session_state.current_analysis = analysis_summary
+                    else:
+                        st.session_state.current_analysis = f"{drug_name.title()} data loaded but insufficient for trend analysis"
                 
                 if not spending_df.empty:
                     # Key metrics
