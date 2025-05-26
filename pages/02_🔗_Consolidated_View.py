@@ -383,6 +383,7 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 st.session_state.current_drug_analysis = enhanced_analysis
                 st.session_state.related_drugs_context = related_context
                 st.session_state.comprehensive_context = f"""
+                
 Comprehensive Analysis for {drug_name.title()}:
 
 DRUG INFORMATION:
@@ -415,6 +416,9 @@ RELATED DRUGS IN SAME CATEGORY:
 DATA SOURCES:
 {', '.join(enhanced_analysis['data_sources'])}
 """
+                # Add these debug lines at the SAME indentation as the line above
+                st.write("DEBUG - Enhanced analysis stored:", len(st.session_state.comprehensive_context))
+                st.write("First 500 chars:", st.session_state.comprehensive_context[:500])
             
             # Display drug information
             col1, col2, col3 = st.columns([2, 1, 1])
