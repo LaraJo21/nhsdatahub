@@ -382,11 +382,6 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 # Store for Claude
                 st.session_state.current_drug_analysis = enhanced_analysis
                 st.session_state.related_drugs_context = related_context
-                
-                # Debug: Check if we're storing the analysis
-                st.write("🔍 DEBUG: About to store comprehensive_context for", drug_name)
-                st.write("🔍 DEBUG: Session state keys before:", list(st.session_state.keys()))
-
                 st.session_state.comprehensive_context = f"""
                 
 Comprehensive Analysis for {drug_name.title()}:
@@ -424,10 +419,7 @@ DATA SOURCES:
                 # Force Claude to refresh its context
                 st.session_state.claude_context_refresh = datetime.now().isoformat()
                 st.write("🔍 DEBUG: Stored comprehensive_context, length:", len(st.session_state.comprehensive_context))
-                # Add these debug lines at the SAME indentation as the line above
-                st.write("DEBUG - Enhanced analysis stored:", len(st.session_state.comprehensive_context))
-                st.write("First 500 chars:", st.session_state.comprehensive_context[:500])
-            
+                
             # Display drug information
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
