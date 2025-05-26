@@ -142,7 +142,10 @@ def query_claude(client, user_message):
 Current Page Context:
 - Page: {context.get('page', 'Unknown')}
 - User Selections: {json.dumps(context.get('user_selections', {}), indent=2)}
-- Data Displayed: {json.dumps(context.get('data_displayed', 'None'), indent=2)}
+- Data Summary: {context.get('current_data_summary', 'No data')}
+
+Comprehensive Drug Analysis:
+{context.get('comprehensive_analysis', 'No comprehensive analysis available')}
 
 Recent Chat History:
 {json.dumps(chat_history[-3:], indent=2) if chat_history else 'No previous conversation'}
