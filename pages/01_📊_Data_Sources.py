@@ -2,11 +2,27 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# Import Claude integration
+try:
+    from utils.claude_integration import render_claude_sidebar
+    claude_available = True
+except ImportError:
+    claude_available = False
+
 st.set_page_config(
     page_title="NHS Data Sources",
     page_icon="📊",
     layout="wide"
 )
+
+# Set current page for Claude context
+st.session_state.current_page = "Data Sources - NHS Data Landscape"
+
+# Render Claude sidebar
+if claude_available:
+    render_claude_sidebar()
+else:
+    st.sidebar.error("Claude integration not available")
 
 st.title("📊 NHS Data Sources")
 st.subheader("Understanding the Current NHS Data Landscape")
