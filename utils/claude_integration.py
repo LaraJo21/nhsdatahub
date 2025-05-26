@@ -41,9 +41,8 @@ def get_page_context():
             
         if hasattr(st.session_state, 'search_performed') and st.session_state.search_performed:
             context["user_selections"]["search_performed"] = True
-            context["current_data_summary"] += f" - Search was performed"
             
-        # Look for comprehensive analysis data
+        # Look for comprehensive analysis data (this should now work!)
         if hasattr(st.session_state, 'comprehensive_context'):
             context["comprehensive_analysis"] = st.session_state.comprehensive_context
             context["current_data_summary"] = "Comprehensive drug analysis with 3-year trends, regional benchmarking, and seasonal patterns available"
@@ -52,10 +51,14 @@ def get_page_context():
         if hasattr(st.session_state, 'current_drug_analysis'):
             context["enhanced_drug_data"] = st.session_state.current_drug_analysis
             
-        # Check all session state keys for debugging
-        available_keys = [key for key in st.session_state.keys() if 'drug' in key.lower() or 'analysis' in key.lower() or 'comprehensive' in key.lower()]
-        if available_keys:
-            context["debug_available_keys"] = available_keys
+        # Get all drug-related keys for debugging
+        drug_keys = [key for key in st.session_state.keys() if any(word in key.lower() for word in ['drug', 'analysis', 'comprehensive', 'context'])]
+        if drug_keys:
+            context["debug_session_keys"] = drug_keys
+            
+        # Add refresh timestamp if available
+        if hasattr(st.session_state, 'claude_context_refresh'):
+            context["last_refresh"] = st.session_state.claude_context_refresh
             
         # Add any dataframes in session state
         data_summary = []
@@ -210,10 +213,16 @@ def render_claude_sidebar():
         )
         
         # Send button
-        if st.button("💬 Send", key="claude_send") and user_input:
-            with st.spinner("🤔 Claude is thinking..."):
-                response = query_claude(st.session_state.claude_client, user_input)
-                st.session_state.claude_latest_response = response
+        send_clicked = st.button("💬 Send", key="claude_send", disabled=not user_input)
+        
+        # Handle both button click and Enter key press
+        if (send_clicked or user_input) and user_input:
+            # Only process if this is a new message (not the same as last processed)
+            if not hasattr(st.session_state, 'last_claude_input') or st.session_state.last_claude_input != user_input:
+                st.session_state.last_claude_input = user_input
+                with st.spinner("🤔 Claude is thinking..."):
+                    response = query_claude(st.session_state.claude_client, user_input)
+                    st.session_state.claude_latest_response = response
         
         # Display latest response
         if hasattr(st.session_state, 'claude_latest_response'):
