@@ -286,6 +286,11 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 # Get recent spending data
                 spending_df = get_total_spending_trend(bnf_code, months=12)
                 
+                # Store data for Claude context
+                if not spending_df.empty:
+                    st.session_state.current_spending_data = spending_df
+                    st.session_state.current_data_summary = f"{drug_name.title()} spending data: {len(spending_df)} months, latest cost £{spending_df['actual_cost'].iloc[-1]:,.0f}" if 'actual_cost' in spending_df.columns else f"{drug_name.title()} data loaded"
+                
                 if not spending_df.empty:
                     # Key metrics
                     col1, col2, col3 = st.columns(3)
@@ -326,6 +331,12 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 
                 # Get ICB spending data
                 icb_df = get_drug_spending_by_icb(bnf_code, months=6)
+                
+                # Store ICB data for Claude context
+                if not icb_df.empty and 'name' in icb_df.columns:
+                    st.session_state.current_icb_data = icb_df
+                    top_icb = icb_df.groupby('name')['actual_cost'].sum().idxmax() if 'actual_cost' in icb_df.columns else "Unknown"
+                    st.session_state.current_icb_summary = f"{drug_name.title()} ICB data: {len(icb_df['name'].unique())} ICBs, top spender: {top_icb}"
                 
                 if not icb_df.empty and 'name' in icb_df.columns:
                     # Group by ICB and sum recent spending
