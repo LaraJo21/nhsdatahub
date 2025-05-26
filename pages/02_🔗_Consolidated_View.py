@@ -6,7 +6,23 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import json
 
+# Import Claude integration
+try:
+    from utils.claude_integration import render_claude_sidebar
+    claude_available = True
+except ImportError:
+    claude_available = False
+
 st.set_page_config(page_title="Consolidated View", page_icon="🔗", layout="wide")
+
+# Set current page for Claude context
+st.session_state.current_page = "Consolidated View - NHS Drug Data Explorer"
+
+# Render Claude sidebar
+if claude_available:
+    render_claude_sidebar()
+else:
+    st.sidebar.error("Claude integration not available")
 
 st.title("🔗 Consolidated NHS Data View")
 st.subheader("Your Unified Interface to NHS Data")
