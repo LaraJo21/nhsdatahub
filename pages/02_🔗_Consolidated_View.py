@@ -184,7 +184,7 @@ def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
     icb_df = get_drug_spending_by_icb(bnf_code, months=12)
     if not icb_df.empty and 'row_name' in icb_df.columns:
         # Group by ICB and calculate totals
-        icb_summary = icb_df.groupby('name').agg({
+        icb_summary = icb_df.groupby('row_name').agg({
             'actual_cost': 'sum',
             'items': 'sum'
         }).reset_index()
@@ -192,9 +192,9 @@ def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
         if not icb_summary.empty:
             analysis["regional_data"] = {
                 "total_icbs": len(icb_summary),
-                "highest_spending_icb": icb_summary.loc[icb_summary['actual_cost'].idxmax(), 'name'],
+                "highest_spending_icb": icb_summary.loc[icb_summary['actual_cost'].idxmax(), 'row_name'],
                 "highest_spending_amount": float(icb_summary['actual_cost'].max()),
-                "lowest_spending_icb": icb_summary.loc[icb_summary['actual_cost'].idxmin(), 'name'],
+                "lowest_spending_icb": icb_summary.loc[icb_summary['actual_cost'].idxmin(), 'row_name'],
                 "lowest_spending_amount": float(icb_summary['actual_cost'].min()),
                 "national_total_cost": float(icb_summary['actual_cost'].sum()),
                 "national_total_items": float(icb_summary['items'].sum()),
@@ -203,7 +203,7 @@ def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
             }
             
             # Find Derby ICB specifically if it exists
-            derby_icbs = icb_summary[icb_summary['name'].str.contains('Derby', case=False, na=False)]
+            derby_icbs = icb_summary[icb_summary['row_name'].str.contains('Derby', case=False, na=False)]
             if not derby_icbs.empty:
                 derby_cost = float(derby_icbs['actual_cost'].iloc[0])
                 national_avg = analysis["regional_data"]["average_icb_cost"]
@@ -383,7 +383,6 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 st.session_state.current_drug_analysis = enhanced_analysis
                 st.session_state.related_drugs_context = related_context
                 st.session_state.comprehensive_context = f"""
-                
 Comprehensive Analysis for {drug_name.title()}:
 
 DRUG INFORMATION:
@@ -416,10 +415,7 @@ RELATED DRUGS IN SAME CATEGORY:
 DATA SOURCES:
 {', '.join(enhanced_analysis['data_sources'])}
 """
-                # Force Claude to refresh its context
-                st.session_state.claude_context_refresh = datetime.now().isoformat()
-                st.write("🔍 DEBUG: Stored comprehensive_context, length:", len(st.session_state.comprehensive_context))
-                
+            
             # Display drug information
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
@@ -513,22 +509,17 @@ DATA SOURCES:
                 st.subheader(f"🗺️ {drug_name.title()} by ICB")
                 
                 # Get ICB spending data
-                st.write("🔍 DEBUG: Attempting to get ICB data for BNF:", bnf_code)
                 icb_df = get_drug_spending_by_icb(bnf_code, months=6)
-                st.write("🔍 DEBUG: ICB data shape:", icb_df.shape if not icb_df.empty else "EMPTY")
-                st.write("🔍 DEBUG: ICB data columns:", list(icb_df.columns) if not icb_df.empty else "NO COLUMNS")
-                if not icb_df.empty:
-                    st.write("🔍 DEBUG: First few ICB names:", icb_df['name'].unique()[:5] if 'name' in icb_df.columns else "NO NAME COLUMN")
                 
                 # Store ICB data for Claude context
-                if not icb_df.empty and 'name' in icb_df.columns:
+                if not icb_df.empty and 'row_name' in icb_df.columns:
                     st.session_state.current_icb_data = icb_df
-                    top_icb = icb_df.groupby('name')['actual_cost'].sum().idxmax() if 'actual_cost' in icb_df.columns else "Unknown"
-                    st.session_state.current_icb_summary = f"{drug_name.title()} ICB data: {len(icb_df['name'].unique())} ICBs, top spender: {top_icb}"
+                    top_icb = icb_df.groupby('row_name')['actual_cost'].sum().idxmax() if 'actual_cost' in icb_df.columns else "Unknown"
+                    st.session_state.current_icb_summary = f"{drug_name.title()} ICB data: {len(icb_df['row_name'].unique())} ICBs, top spender: {top_icb}"
                 
-                if not icb_df.empty and 'name' in icb_df.columns:
+                if not icb_df.empty and 'row_name' in icb_df.columns:
                     # Group by ICB and sum recent spending
-                    icb_summary = icb_df.groupby('name').agg({
+                    icb_summary = icb_df.groupby('row_name').agg({
                         'actual_cost': 'sum',
                         'items': 'sum'
                     }).reset_index()
@@ -539,10 +530,10 @@ DATA SOURCES:
                     fig = px.bar(
                         top_icbs,
                         x='actual_cost',
-                        y='name',
+                        y='row_name',
                         orientation='h',
                         title=f"Top 10 ICBs by {drug_name.title()} Spending (Last 6 months)",
-                        labels={'actual_cost': 'Total Cost (£)', 'name': 'ICB'}
+                        labels={'actual_cost': 'Total Cost (£)', 'row_name': 'ICB'}
                     )
                     fig.update_layout(height=500)
                     st.plotly_chart(fig, use_container_width=True)
