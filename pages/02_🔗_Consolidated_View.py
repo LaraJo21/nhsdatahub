@@ -287,6 +287,27 @@ def get_drug_suggestions(query):
                 suggestions.append(drug_name)
     
     return sorted(suggestions)[:8]  # Return top 8 suggestions
+
+@st.cache_data(ttl=3600)
+def get_bnf_categories():
+    """Get BNF chapter information"""
+    return {
+        '01': 'Gastro-Intestinal System',
+        '02': 'Cardiovascular System', 
+        '03': 'Respiratory System',
+        '04': 'Central Nervous System',
+        '05': 'Infections',
+        '06': 'Endocrine System',
+        '07': 'Obstetrics, Gynaecology, and Urinary-Tract Disorders',
+        '08': 'Malignant Disease and Immunosuppression',
+        '09': 'Nutrition and Blood',
+        '10': 'Musculoskeletal and Joint Diseases',
+        '11': 'Eye',
+        '12': 'Ear, Nose, and Oropharynx',
+        '13': 'Skin',
+        '14': 'Immunological Products and Vaccines',
+        '15': 'Anaesthesia'
+    }
     """Get BNF chapter information"""
     return {
         '01': 'Gastro-Intestinal System',
