@@ -43,132 +43,104 @@ def get_openprescribing_data(endpoint, params=None):
         return None
 
 @st.cache_data(ttl=3600)
-def get_bnf_lookup():
-    """Comprehensive BNF code lookup"""
-    return {
-        # Cardiovascular System (02)
-        'ramipril': ('0205051R0', 'ACE Inhibitor'),
-        'amlodipine': ('0206020A0', 'Calcium Channel Blocker'),
-        'atorvastatin': ('0212000Y0', 'Statin'),
-        'simvastatin': ('0212000X0', 'Statin'),
-        'warfarin': ('0208020W0', 'Anticoagulant'),
-        'clopidogrel': ('0209000C0', 'Antiplatelet'),
-        
-        # Central Nervous System (04) - Corrected with actual OpenPrescribing codes
-        'paracetamol': ('0407010Q0', 'Analgesic'),
-        'morphine': ('0407020Q0', 'Opioid Analgesic'), 
-        'tramadol': ('0407020T0', 'Opioid Analgesic'),
-        'sertraline': ('0403030Q0', 'SSRI Antidepressant'),  # Corrected code
-        'fluoxetine': ('0403030F0', 'SSRI Antidepressant'),
-        'citalopram': ('0403030C0', 'SSRI Antidepressant'),
-        'lorazepam': ('0401020L0', 'Benzodiazepine'),
-        
-        # Infections (05)
-        'amoxicillin': ('0501013B0', 'Penicillin Antibiotic'),
-        'flucloxacillin': ('0501011F0', 'Penicillin Antibiotic'),
-        'ciprofloxacin': ('0501040C0', 'Quinolone Antibiotic'),
-        'metronidazole': ('0501040M0', 'Antibiotic'),
-        
-        # Endocrine System (06)
-        'metformin': ('0601022B0', 'Diabetes - Biguanide'),
-        'insulin': ('0601010H0', 'Diabetes - Insulin'),
-        'gliclazide': ('0601021G0', 'Diabetes - Sulfonylurea'),
-        'levothyroxine': ('0602010L0', 'Thyroid Hormone'),
-        'prednisolone': ('0603020P0', 'Corticosteroid'),
-        
-        # Gastro-Intestinal System (01)
-        'omeprazole': ('0103050P0', 'Proton Pump Inhibitor'),
-        'lansoprazole': ('0103050L0', 'Proton Pump Inhibitor'),
-        'ranitidine': ('0103020R0', 'H2 Receptor Antagonist'),
-        'loperamide': ('0104020L0', 'Anti-diarrhoeal'),
-        
-        # Respiratory System (03)
-        'salbutamol': ('0301011R0', 'Beta2 Agonist'),
-        'beclometasone': ('0302000N0', 'Corticosteroid'),
-        'prednisolone': ('0302020P0', 'Oral Corticosteroid'),
-        'omalizumab': ('0302020O0', 'Monoclonal Antibody'),
-        'montelukast': ('0303020M0', 'Leukotriene Receptor Antagonist'),
-        
-        # Immunological Products (08) - High-cost biologics
-        'adalimumab': ('0212000AA', 'TNF Alpha Inhibitor'),
-        'infliximab': ('0212000AC', 'TNF Alpha Inhibitor'),
-        'etanercept': ('0212000AB', 'TNF Alpha Inhibitor'),
-        'rituximab': ('0801020T0', 'Monoclonal Antibody'),
-        'trastuzumab': ('0801020Q0', 'Monoclonal Antibody'),
-        'bevacizumab': ('0801020B0', 'Monoclonal Antibody'),
-        
-        # Nutrition and Blood (09)
-        'folic acid': ('0906011F0', 'Vitamin B9'),
-        'iron sulfate': ('0901011I0', 'Iron Supplement'),
-        'vitamin d': ('0906060V0', 'Vitamin D'),
-        
-        # Musculoskeletal (10)
-        'ibuprofen': ('1001010I0', 'NSAID'),
-        'diclofenac': ('1001010D0', 'NSAID'),
-        'naproxen': ('1001010N0', 'NSAID'),
-        'allopurinol': ('1003020A0', 'Uric Acid Reducer'),
-        
-        # Eye (11)
-        'chloramphenicol': ('1103010C0', 'Antibiotic Eye Drops'),
-        'timolol': ('1106020T0', 'Glaucoma Treatment'),
-        
-        # ENT (12)
-        'sodium chloride': ('1201010S0', 'Nasal Decongestant'),
-        
-        # Skin (13)
-        'hydrocortisone': ('1303020H0', 'Topical Corticosteroid'),
-        'emollient': ('1301020E0', 'Skin Moisturizer')
-    }
+def search_drugs(query):
+    """Search for drugs by name - simple and direct"""
+    if not query or len(query) < 2:
+        return []
+    
+    # Test if the drug exists in OpenPrescribing by trying to get data
+    test_data = get_total_spending_trend(query, months=1)
+    if not test_data.empty:
+        return [(query.title(), query.lower(), "Found in OpenPrescribing")]
+    
+    # If exact match fails, try some common variations
+    variations = [
+        query.lower(),
+        query.lower().replace(' ', ''),
+        f"{query.lower()} hydrochloride",
+        f"{query.lower()} sodium"
+    ]
+    
+    for variation in variations:
+        test_data = get_total_spending_trend(variation, months=1)
+        if not test_data.empty:
+            return [(variation.title(), variation.lower(), "Found in OpenPrescribing")]
+    
+    return []
 
 @st.cache_data(ttl=3600)
-def search_drugs(query):
-    """Search for drugs using multiple approaches"""
+def get_total_spending_trend(drug_name, months=24):
+    """Get total spending trend for a drug by name"""
+    params = {
+        'q': drug_name.lower(),
+        'format': 'json'
+    }
     
-    # First, check if it's a direct BNF code
-    if len(query) == 10 and query.replace('A', '').replace('B', '').replace('C', '').replace('D', '').replace('E', '').replace('F', '').replace('G', '').replace('H', '').replace('I', '').replace('J', '').replace('K', '').replace('L', '').replace('M', '').replace('N', '').replace('O', '').replace('P', '').replace('Q', '').replace('R', '').replace('S', '').replace('T', '').replace('U', '').replace('V', '').replace('W', '').replace('X', '').replace('Y', '').replace('Z', '').isdigit():
-        # Try to get data for this BNF code
-        test_data = get_total_spending_trend(query, months=1)
-        if not test_data.empty:
-            return [(query.title(), query.upper(), "Direct BNF Code")]
+    data = get_openprescribing_data('spending', params)
+    if data and len(data) > 0:
+        df = pd.DataFrame(data)
+        if not df.empty and 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            # Get last N months
+            cutoff_date = datetime.now() - timedelta(days=months*30)
+            df = df[df['date'] >= cutoff_date]
+        return df
     
-    # Try our local lookup first (for common drugs with categories)
-    bnf_lookup = get_bnf_lookup()
-    query_lower = query.lower()
-    local_matches = []
-    for name, (code, category) in bnf_lookup.items():
-        if query_lower in name.lower():
-            local_matches.append((name, code, category))
+    return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def get_drug_spending_by_icb(drug_name, months=12):
+    """Get drug spending by ICB by name"""
+    params = {
+        'org_type': 'sicbl',
+        'q': drug_name.lower(),
+        'format': 'json'
+    }
     
-    if local_matches:
-        return local_matches
-    
-    # If not in local lookup, try OpenPrescribing API directly
-    # We'll attempt to search with the query as a potential BNF code or name
-    try:
-        # Try treating the query as a potential drug name and see if we get data
-        test_data = get_total_spending_trend(query, months=1)
-        if not test_data.empty:
-            return [(query.title(), query.lower(), "Found in OpenPrescribing Database")]
+    data = get_openprescribing_data('spending_by_org', params)
+    if data and len(data) > 0:
+        df = pd.DataFrame(data)
+        if not df.empty and 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+            # Get last N months
+            cutoff_date = datetime.now() - timedelta(days=months*30)
+            df = df[df['date'] >= cutoff_date]
+        return df
         
-        # Try with common BNF prefixes for different drug types
-        common_prefixes = ['0301', '0302', '0303', '0601', '0602', '0801', '0212']
-        for prefix in common_prefixes:
-            # This is a bit hacky but might work for some drugs
-            potential_code = f"{prefix}000{query[:2].upper()}0"
-            test_data = get_total_spending_trend(potential_code, months=1)
-            if not test_data.empty:
-                return [(query.title(), potential_code, "Found via API search")]
-                
-    except Exception:
-        pass
+    return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def get_drug_suggestions(query):
+    """Get drug name suggestions from common drugs list"""
+    if not query or len(query) < 2:
+        return []
     
-    # Last resort: suggest similar drugs from our database
+    # Common NHS drugs for suggestions
+    common_drugs = [
+        'adalimumab', 'infliximab', 'rituximab', 'trastuzumab', 'omalizumab',
+        'metformin', 'insulin', 'atorvastatin', 'simvastatin', 'ramipril',
+        'amlodipine', 'sertraline', 'fluoxetine', 'citalopram', 'paracetamol',
+        'ibuprofen', 'omeprazole', 'lansoprazole', 'salbutamol', 'prednisolone',
+        'amoxicillin', 'ciprofloxacin', 'warfarin', 'clopidogrel', 'morphine',
+        'tramadol', 'lorazepam', 'diazepam', 'levothyroxine', 'metronidazole'
+    ]
+    
+    query_lower = query.lower()
     suggestions = []
-    for name, (code, category) in bnf_lookup.items():
-        if any(char in query_lower for char in name.lower() if len(char) > 2):
-            suggestions.append((name, code, f"Similar to: {category}"))
     
-    return suggestions[:3]  # Return top 3 suggestions
+    # Look for drugs that start with the query
+    for drug_name in common_drugs:
+        if drug_name.lower().startswith(query_lower):
+            suggestions.append(drug_name)
+    
+    # If no exact starts, look for drugs that contain the query
+    if len(suggestions) < 5:
+        for drug_name in common_drugs:
+            if query_lower in drug_name.lower() and drug_name not in suggestions:
+                suggestions.append(drug_name)
+    
+    return sorted(suggestions)[:8]
 
 @st.cache_data(ttl=3600)  
 def get_enhanced_drug_analysis(drug_name, months=36):
@@ -264,125 +236,6 @@ def get_enhanced_drug_analysis(drug_name, months=36):
     
     return analysis
 
-@st.cache_data(ttl=3600)
-def get_drug_suggestions(query):
-    """Get drug name suggestions based on partial input"""
-    if not query or len(query) < 2:
-        return []
-    
-    bnf_lookup = get_bnf_lookup()
-    suggestions = []
-    query_lower = query.lower()
-    
-    # Look for drugs that start with the query
-    for drug_name in bnf_lookup.keys():
-        if drug_name.lower().startswith(query_lower):
-            suggestions.append(drug_name)
-    
-    # If no exact starts, look for drugs that contain the query
-    if len(suggestions) < 5:
-        for drug_name in bnf_lookup.keys():
-            if query_lower in drug_name.lower() and drug_name not in suggestions:
-                suggestions.append(drug_name)
-    
-    return sorted(suggestions)[:8]  # Return top 8 suggestions
-
-@st.cache_data(ttl=3600)
-def get_bnf_categories():
-    """Get BNF chapter information"""
-    return {
-        '01': 'Gastro-Intestinal System',
-        '02': 'Cardiovascular System', 
-        '03': 'Respiratory System',
-        '04': 'Central Nervous System',
-        '05': 'Infections',
-        '06': 'Endocrine System',
-        '07': 'Obstetrics, Gynaecology, and Urinary-Tract Disorders',
-        '08': 'Malignant Disease and Immunosuppression',
-        '09': 'Nutrition and Blood',
-        '10': 'Musculoskeletal and Joint Diseases',
-        '11': 'Eye',
-        '12': 'Ear, Nose, and Oropharynx',
-        '13': 'Skin',
-        '14': 'Immunological Products and Vaccines',
-        '15': 'Anaesthesia'
-    }
-    """Get BNF chapter information"""
-    return {
-        '01': 'Gastro-Intestinal System',
-        '02': 'Cardiovascular System', 
-        '03': 'Respiratory System',
-        '04': 'Central Nervous System',
-        '05': 'Infections',
-        '06': 'Endocrine System',
-        '07': 'Obstetrics, Gynaecology, and Urinary-Tract Disorders',
-        '08': 'Malignant Disease and Immunosuppression',
-        '09': 'Nutrition and Blood',
-        '10': 'Musculoskeletal and Joint Diseases',
-        '11': 'Eye',
-        '12': 'Ear, Nose, and Oropharynx',
-        '13': 'Skin',
-        '14': 'Immunological Products and Vaccines',
-        '15': 'Anaesthesia'
-    }
-
-@st.cache_data(ttl=3600)
-def get_related_drugs_context(bnf_code):
-    """Get context about related drugs in the same BNF chapter"""
-    chapter = bnf_code[:2]
-    bnf_lookup = get_bnf_lookup()
-    
-    related_drugs = []
-    for name, (code, category) in bnf_lookup.items():
-        if code.startswith(chapter) and code != bnf_code:
-            related_drugs.append({"name": name, "bnf_code": code, "category": category})
-    
-    return {
-        "bnf_chapter": chapter,
-        "related_drugs": related_drugs[:5],  # Top 5 related
-        "bnf_categories": get_bnf_categories()
-    }
-
-@st.cache_data(ttl=3600)
-def get_drug_spending_by_icb(bnf_code, months=12):
-    """Get drug spending by ICB"""
-    params = {
-        'org_type': 'sicbl',
-        'code': bnf_code,
-        'format': 'json'
-    }
-    
-    data = get_openprescribing_data('spending_by_org', params)
-    if data:
-        df = pd.DataFrame(data)
-        if not df.empty and 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            # Get last N months
-            cutoff_date = datetime.now() - timedelta(days=months*30)
-            df = df[df['date'] >= cutoff_date]
-        return df
-    return pd.DataFrame()
-
-@st.cache_data(ttl=3600)  
-def get_total_spending_trend(bnf_code, months=24):
-    """Get total spending trend for a drug"""
-    params = {
-        'code': bnf_code,
-        'format': 'json'
-    }
-    
-    data = get_openprescribing_data('spending', params)
-    if data:
-        df = pd.DataFrame(data)
-        if not df.empty and 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date')
-            # Get last N months
-            cutoff_date = datetime.now() - timedelta(days=months*30)
-            df = df[df['date'] >= cutoff_date]
-        return df
-    return pd.DataFrame()
-
 # Cache management
 col1, col2 = st.columns([3, 1])
 with col1:
@@ -461,9 +314,9 @@ with col3:
         st.session_state.current_drug = "metformin"
 
 with col4:
-    if st.button("💊 Atorvastatin", help="Cholesterol medication"):
+    if st.button("💊 Sertraline", help="Antidepressant"):
         st.session_state.search_performed = True
-        st.session_state.current_drug = "atorvastatin"
+        st.session_state.current_drug = "sertraline"
 
 # Process search if performed
 if hasattr(st.session_state, 'search_performed') and st.session_state.search_performed:
@@ -473,74 +326,22 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
         # Search for the drug
         matches = search_drugs(query)
         
-        # Debug: Show what we found
-        st.write("🔍 DEBUG: Search matches found:", matches)
-        
         if matches:
-            drug_name, bnf_code, category = matches[0]  # Take first match
-            
-            # Debug: Show what we're using
-            st.write(f"🔍 DEBUG: Using BNF code '{bnf_code}' for '{drug_name}'")
-            
-            # Debug: Test direct name search
-            st.write("🔍 DEBUG: Testing direct name search...")
-            name_url = f"https://openprescribing.net/api/1.0/spending/?q={query}&format=json"
-            st.write(f"🔍 DEBUG: Name search URL: {name_url}")
-            
-            try:
-                response = requests.get(name_url, timeout=10)
-                st.write(f"🔍 DEBUG: Name search status: {response.status_code}")
-                if response.status_code == 200:
-                    name_data = response.json()
-                    st.write(f"🔍 DEBUG: Name search returned {len(name_data)} records")
-                    if name_data:
-                        st.write(f"🔍 DEBUG: Name search sample: {name_data[0]}")
-            except Exception as e:
-                st.write(f"🔍 DEBUG: Name search exception: {str(e)}")
-            
-            # Debug: Test the API URL
-            test_url = f"https://openprescribing.net/api/1.0/spending/?code={bnf_code}&format=json"
-            st.write(f"🔍 DEBUG: BNF Code API URL: {test_url}")
-            
-            # Debug: Test the API call directly
-            try:
-                import requests
-                response = requests.get(test_url, timeout=10)
-                st.write(f"🔍 DEBUG: API Response Status: {response.status_code}")
-                if response.status_code == 200:
-                    data = response.json()
-                    st.write(f"🔍 DEBUG: API returned {len(data)} records")
-                    if data:
-                        st.write(f"🔍 DEBUG: Sample data: {data[0]}")
-                else:
-                    st.write(f"🔍 DEBUG: API Error: {response.text}")
-            except Exception as e:
-                st.write(f"🔍 DEBUG: API Exception: {str(e)}")
+            drug_name, search_term, data_source = matches[0]  # Take first match
             
             # Get enhanced analysis for Claude
             with st.spinner("🔍 Gathering comprehensive data..."):
-                enhanced_analysis = get_enhanced_drug_analysis(bnf_code, drug_name)
-                related_context = get_related_drugs_context(bnf_code)
+                enhanced_analysis = get_enhanced_drug_analysis(search_term)
                 
-                # Debug: Show what analysis we got
-                st.write("🔍 DEBUG: Enhanced analysis keys:", list(enhanced_analysis.keys()))
-                if 'trend_data' in enhanced_analysis:
-                    st.write("🔍 DEBUG: Trend data:", enhanced_analysis['trend_data'])
-                else:
-                    st.write("🔍 DEBUG: No trend data in analysis")
-                enhanced_analysis = get_enhanced_drug_analysis(bnf_code, drug_name)
-                related_context = get_related_drugs_context(bnf_code)
-                
-                # Store for Claude
+                # Store for Claude - simplified context
                 st.session_state.current_drug_analysis = enhanced_analysis
-                st.session_state.related_drugs_context = related_context
                 st.session_state.comprehensive_context = f"""
-Comprehensive Analysis for {drug_name.title()}:
+Comprehensive Analysis for {drug_name}:
 
 DRUG INFORMATION:
-- BNF Code: {bnf_code}
-- Category: {category}
-- BNF Chapter: {related_context['bnf_chapter']} - {related_context['bnf_categories'].get(related_context['bnf_chapter'], 'Unknown')}
+- Drug Name: {drug_name}
+- Search Term Used: {search_term}
+- Data Source: {data_source}
 
 SPENDING TRENDS:
 {f"- Data Period: {enhanced_analysis['trend_data']['date_range']}" if 'trend_data' in enhanced_analysis else "- No trend data available"}
@@ -561,9 +362,6 @@ SEASONAL PATTERNS:
 {f"- Highest Spending Month: {enhanced_analysis['seasonal_patterns']['highest_spending_month']}" if 'seasonal_patterns' in enhanced_analysis else "- Insufficient data for seasonal analysis"}
 {f"- Seasonal Variation: {enhanced_analysis['seasonal_patterns']['seasonal_variation_pct']:.1f}%" if 'seasonal_patterns' in enhanced_analysis else ""}
 
-RELATED DRUGS IN SAME CATEGORY:
-{', '.join([drug['name'].title() for drug in related_context['related_drugs'][:3]])}
-
 DATA SOURCES:
 {', '.join(enhanced_analysis['data_sources'])}
 """
@@ -573,7 +371,7 @@ DATA SOURCES:
             with col1:
                 st.success(f"✅ **{drug_name}**")
             with col2:
-                st.info(f"**Source:** {search_term}")
+                st.info(f"**Source:** {data_source}")
             
             # Create tabs for different views
             tab1, tab2, tab3 = st.tabs(["📊 Spending Overview", "🗺️ Regional Analysis", "📈 Trends"])
@@ -615,7 +413,7 @@ DATA SOURCES:
                             spending_df, 
                             x='date', 
                             y='actual_cost',
-                            title=f"Monthly Spending Trend - {drug_name.title()}",
+                            title=f"Monthly Spending Trend - {drug_name}",
                             labels={'actual_cost': 'Cost (£)', 'date': 'Date'}
                         )
                         fig.update_layout(height=400)
@@ -741,7 +539,7 @@ with col1:
 
 with col2:
     st.markdown("""
-    **BNF Codes:** British National Formulary classification  
+    **Search Method:** Drug name matching  
     **ICB:** Integrated Care Board areas  
     **Cost:** Net Ingredient Cost (reimbursement price)  
     **Items:** Number of prescription items (not quantity)  
