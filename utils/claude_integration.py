@@ -47,6 +47,15 @@ def get_page_context():
         if hasattr(st.session_state, 'comprehensive_context'):
             context["comprehensive_analysis"] = st.session_state.comprehensive_context
             context["current_data_summary"] = "Comprehensive drug analysis with 3-year trends, regional benchmarking, and seasonal patterns available"
+        
+        # Look for current drug analysis
+        if hasattr(st.session_state, 'current_drug_analysis'):
+            context["enhanced_drug_data"] = st.session_state.current_drug_analysis
+            
+        # Check all session state keys for debugging
+        available_keys = [key for key in st.session_state.keys() if 'drug' in key.lower() or 'analysis' in key.lower() or 'comprehensive' in key.lower()]
+        if available_keys:
+            context["debug_available_keys"] = available_keys
             
         # Add any dataframes in session state
         data_summary = []
