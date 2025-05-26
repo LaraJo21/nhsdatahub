@@ -513,7 +513,12 @@ DATA SOURCES:
                 st.subheader(f"🗺️ {drug_name.title()} by ICB")
                 
                 # Get ICB spending data
+                st.write("🔍 DEBUG: Attempting to get ICB data for BNF:", bnf_code)
                 icb_df = get_drug_spending_by_icb(bnf_code, months=6)
+                st.write("🔍 DEBUG: ICB data shape:", icb_df.shape if not icb_df.empty else "EMPTY")
+                st.write("🔍 DEBUG: ICB data columns:", list(icb_df.columns) if not icb_df.empty else "NO COLUMNS")
+                if not icb_df.empty:
+                    st.write("🔍 DEBUG: First few ICB names:", icb_df['name'].unique()[:5] if 'name' in icb_df.columns else "NO NAME COLUMN")
                 
                 # Store ICB data for Claude context
                 if not icb_df.empty and 'name' in icb_df.columns:
