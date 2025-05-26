@@ -382,6 +382,11 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
                 # Store for Claude
                 st.session_state.current_drug_analysis = enhanced_analysis
                 st.session_state.related_drugs_context = related_context
+                
+                # Debug: Check if we're storing the analysis
+                st.write("🔍 DEBUG: About to store comprehensive_context for", drug_name)
+                st.write("🔍 DEBUG: Session state keys before:", list(st.session_state.keys()))
+
                 st.session_state.comprehensive_context = f"""
                 
 Comprehensive Analysis for {drug_name.title()}:
