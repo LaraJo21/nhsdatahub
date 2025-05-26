@@ -421,6 +421,9 @@ RELATED DRUGS IN SAME CATEGORY:
 DATA SOURCES:
 {', '.join(enhanced_analysis['data_sources'])}
 """
+                # Force Claude to refresh its context
+                st.session_state.claude_context_refresh = datetime.now().isoformat()
+                st.write("🔍 DEBUG: Stored comprehensive_context, length:", len(st.session_state.comprehensive_context))
                 # Add these debug lines at the SAME indentation as the line above
                 st.write("DEBUG - Enhanced analysis stored:", len(st.session_state.comprehensive_context))
                 st.write("First 500 chars:", st.session_state.comprehensive_context[:500])
