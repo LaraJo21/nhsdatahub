@@ -266,7 +266,27 @@ def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
     return analysis
 
 @st.cache_data(ttl=3600)
-def get_bnf_categories():
+def get_drug_suggestions(query):
+    """Get drug name suggestions based on partial input"""
+    if not query or len(query) < 2:
+        return []
+    
+    bnf_lookup = get_bnf_lookup()
+    suggestions = []
+    query_lower = query.lower()
+    
+    # Look for drugs that start with the query
+    for drug_name in bnf_lookup.keys():
+        if drug_name.lower().startswith(query_lower):
+            suggestions.append(drug_name)
+    
+    # If no exact starts, look for drugs that contain the query
+    if len(suggestions) < 5:
+        for drug_name in bnf_lookup.keys():
+            if query_lower in drug_name.lower() and drug_name not in suggestions:
+                suggestions.append(drug_name)
+    
+    return sorted(suggestions)[:8]  # Return top 8 suggestions
     """Get BNF chapter information"""
     return {
         '01': 'Gastro-Intestinal System',
@@ -355,20 +375,51 @@ with col2:
         st.success("Cache cleared! Data will be refreshed on next search.")
 
 # Drug search interface
-col1, col2 = st.columns([2, 1])
+col1, col2 = st.columns([3, 1])
 
 with col1:
     drug_query = st.text_input(
         "🔍 Search for a drug or BNF code:", 
-        placeholder="e.g., adalimumab, metformin, 0601022B0",
-        help="Search by drug name or enter a 10-character BNF code directly"
+        placeholder="e.g., adalimumab, metformin, sertraline...",
+        help="Search by drug name or enter a 10-character BNF code directly",
+        key="drug_search_input"
     )
 
 with col2:
-    if st.button("🔍 Search", type="primary", disabled=not drug_query):
-        if drug_query:
-            st.session_state.search_performed = True
-            st.session_state.current_drug = drug_query
+    search_clicked = st.button("🔍 Search", type="primary", disabled=not drug_query)
+
+# Show autocomplete suggestions as you type
+if drug_query and len(drug_query) >= 2:
+    suggestions = get_drug_suggestions(drug_query)
+    if suggestions and drug_query.lower() not in [s.lower() for s in suggestions]:
+        st.markdown("**💡 Suggestions:**")
+        
+        # Create columns for suggestion buttons
+        num_cols = min(len(suggestions), 4)
+        cols = st.columns(num_cols)
+        
+        for i, suggestion in enumerate(suggestions[:num_cols]):
+            with cols[i % num_cols]:
+                if st.button(f"💊 {suggestion.title()}", key=f"suggest_{suggestion}_{i}"):
+                    st.session_state.current_drug = suggestion
+                    st.session_state.search_performed = True
+                    st.rerun()
+        
+        # Show remaining suggestions in a second row if needed
+        if len(suggestions) > num_cols:
+            remaining = suggestions[num_cols:]
+            cols2 = st.columns(min(len(remaining), 4))
+            for i, suggestion in enumerate(remaining[:4]):
+                with cols2[i]:
+                    if st.button(f"💊 {suggestion.title()}", key=f"suggest2_{suggestion}_{i}"):
+                        st.session_state.current_drug = suggestion
+                        st.session_state.search_performed = True
+                        st.rerun()
+
+# Handle both button click and Enter key press
+if (search_clicked or drug_query) and drug_query:
+    st.session_state.search_performed = True
+    st.session_state.current_drug = drug_query
 
 # Sample quick searches
 st.markdown("**Quick searches:**")
