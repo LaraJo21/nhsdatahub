@@ -85,6 +85,8 @@ def get_bnf_lookup():
         'salbutamol': ('0301011R0', 'Beta2 Agonist'),
         'beclometasone': ('0302000N0', 'Corticosteroid'),
         'prednisolone': ('0302020P0', 'Oral Corticosteroid'),
+        'omalizumab': ('0302020O0', 'Monoclonal Antibody'),
+        'montelukast': ('0303020M0', 'Leukotriene Receptor Antagonist'),
         
         # Immunological Products (08) - High-cost biologics
         'adalimumab': ('0212000AA', 'TNF Alpha Inhibitor'),
@@ -119,25 +121,53 @@ def get_bnf_lookup():
 
 @st.cache_data(ttl=3600)
 def search_drugs(query):
-    """Search for drugs using BNF lookup or direct BNF code"""
-    bnf_lookup = get_bnf_lookup()
+    """Search for drugs using multiple approaches"""
     
-    # Check if query is a BNF code (10 characters, alphanumeric)
+    # First, check if it's a direct BNF code
     if len(query) == 10 and query.replace('A', '').replace('B', '').replace('C', '').replace('D', '').replace('E', '').replace('F', '').replace('G', '').replace('H', '').replace('I', '').replace('J', '').replace('K', '').replace('L', '').replace('M', '').replace('N', '').replace('O', '').replace('P', '').replace('Q', '').replace('R', '').replace('S', '').replace('T', '').replace('U', '').replace('V', '').replace('W', '').replace('X', '').replace('Y', '').replace('Z', '').isdigit():
-        # Find drug name by BNF code
-        for name, (code, category) in bnf_lookup.items():
-            if code.upper() == query.upper():
-                return [(name, code, category)]
-        return [("Unknown Drug", query.upper(), "Direct BNF Code")]
+        # Try to get data for this BNF code
+        test_data = get_total_spending_trend(query, months=1)
+        if not test_data.empty:
+            return [(query.title(), query.upper(), "Direct BNF Code")]
     
-    # Search by drug name
+    # Try our local lookup first (for common drugs with categories)
+    bnf_lookup = get_bnf_lookup()
     query_lower = query.lower()
-    matches = []
+    local_matches = []
     for name, (code, category) in bnf_lookup.items():
         if query_lower in name.lower():
-            matches.append((name, code, category))
+            local_matches.append((name, code, category))
     
-    return matches
+    if local_matches:
+        return local_matches
+    
+    # If not in local lookup, try OpenPrescribing API directly
+    # We'll attempt to search with the query as a potential BNF code or name
+    try:
+        # Try treating the query as a potential drug name and see if we get data
+        test_data = get_total_spending_trend(query, months=1)
+        if not test_data.empty:
+            return [(query.title(), query.lower(), "Found in OpenPrescribing Database")]
+        
+        # Try with common BNF prefixes for different drug types
+        common_prefixes = ['0301', '0302', '0303', '0601', '0602', '0801', '0212']
+        for prefix in common_prefixes:
+            # This is a bit hacky but might work for some drugs
+            potential_code = f"{prefix}000{query[:2].upper()}0"
+            test_data = get_total_spending_trend(potential_code, months=1)
+            if not test_data.empty:
+                return [(query.title(), potential_code, "Found via API search")]
+                
+    except Exception:
+        pass
+    
+    # Last resort: suggest similar drugs from our database
+    suggestions = []
+    for name, (code, category) in bnf_lookup.items():
+        if any(char in query_lower for char in name.lower() if len(char) > 2):
+            suggestions.append((name, code, f"Similar to: {category}"))
+    
+    return suggestions[:3]  # Return top 3 suggestions
 
 @st.cache_data(ttl=3600)  
 def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
