@@ -171,18 +171,17 @@ def search_drugs(query):
     return suggestions[:3]  # Return top 3 suggestions
 
 @st.cache_data(ttl=3600)  
-def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
-    """Get comprehensive drug analysis data for Claude"""
+def get_enhanced_drug_analysis(drug_name, months=36):
+    """Get comprehensive drug analysis data for Claude using drug name"""
     
     analysis = {
         "drug_name": drug_name,
-        "bnf_code": bnf_code,
         "analysis_date": datetime.now().isoformat(),
         "data_sources": []
     }
     
     # 1. Extended trend data (3 years)
-    trend_df = get_total_spending_trend(bnf_code, months=months)
+    trend_df = get_total_spending_trend(drug_name, months=months)
     if not trend_df.empty:
         analysis["trend_data"] = {
             "months_of_data": len(trend_df),
@@ -212,7 +211,7 @@ def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
         analysis["data_sources"].append("OpenPrescribing trend data (36 months)")
     
     # 2. ICB regional analysis
-    icb_df = get_drug_spending_by_icb(bnf_code, months=12)
+    icb_df = get_drug_spending_by_icb(drug_name, months=12)
     if not icb_df.empty and 'row_name' in icb_df.columns:
         # Group by ICB and calculate totals
         icb_summary = icb_df.groupby('row_name').agg({
@@ -570,58 +569,24 @@ DATA SOURCES:
 """
             
             # Display drug information
-            col1, col2, col3 = st.columns([2, 1, 1])
+            col1, col2 = st.columns([2, 1])
             with col1:
-                st.success(f"✅ **{drug_name.title()}**")
+                st.success(f"✅ **{drug_name}**")
             with col2:
-                st.info(f"**BNF:** {bnf_code}")
-            with col3:
-                st.info(f"**Category:** {category}")
-            
-            # BNF Chapter information
-            chapter = bnf_code[:2]
-            bnf_categories = get_bnf_categories()
-            if chapter in bnf_categories:
-                st.markdown(f"📖 **BNF Chapter {chapter}:** {bnf_categories[chapter]}")
+                st.info(f"**Source:** {source}")
             
             # Create tabs for different views
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Spending Overview", "🗺️ Regional Analysis", "📈 Trends", "📋 BNF Info"])
+            tab1, tab2, tab3 = st.tabs(["📊 Spending Overview", "🗺️ Regional Analysis", "📈 Trends"])
             
             with tab1:
-                st.subheader(f"💰 {drug_name.title()} Spending Overview")
+                st.subheader(f"💰 {drug_name} Spending Overview")
                 
                 # Get recent spending data
-                spending_df = get_total_spending_trend(bnf_code, months=12)
+                spending_df = get_total_spending_trend(search_term, months=12)
                 
                 # Store data for Claude context
                 if not spending_df.empty:
                     st.session_state.current_spending_data = spending_df
-                    
-                    # Give Claude detailed analysis data
-                    if 'actual_cost' in spending_df.columns and len(spending_df) >= 2:
-                        latest_cost = spending_df['actual_cost'].iloc[-1]
-                        previous_cost = spending_df['actual_cost'].iloc[-2]
-                        mom_change = ((latest_cost - previous_cost) / previous_cost) * 100
-                        
-                        # Get min/max for context
-                        min_cost = spending_df['actual_cost'].min()
-                        max_cost = spending_df['actual_cost'].max()
-                        avg_cost = spending_df['actual_cost'].mean()
-                        
-                        analysis_summary = f"""
-{drug_name.title()} Spending Analysis:
-- Latest Month: £{latest_cost:,.0f}
-- Previous Month: £{previous_cost:,.0f} 
-- Month-on-Month Change: {mom_change:+.1f}%
-- 12-Month Range: £{min_cost:,.0f} to £{max_cost:,.0f}
-- Average Monthly Spend: £{avg_cost:,.0f}
-- Total Months of Data: {len(spending_df)}
-- Trend Direction: {'Increasing' if mom_change > 5 else 'Decreasing' if mom_change < -5 else 'Stable'}
-"""
-                        
-                        st.session_state.current_analysis = analysis_summary
-                    else:
-                        st.session_state.current_analysis = f"{drug_name.title()} data loaded but insufficient for trend analysis"
                 
                 if not spending_df.empty:
                     # Key metrics
@@ -659,16 +624,14 @@ DATA SOURCES:
                     st.warning("No recent spending data available for this drug.")
             
             with tab2:
-                st.subheader(f"🗺️ {drug_name.title()} by ICB")
+                st.subheader(f"🗺️ {drug_name} by ICB")
                 
                 # Get ICB spending data
-                icb_df = get_drug_spending_by_icb(bnf_code, months=6)
+                icb_df = get_drug_spending_by_icb(search_term, months=6)
                 
                 # Store ICB data for Claude context
                 if not icb_df.empty and 'row_name' in icb_df.columns:
                     st.session_state.current_icb_data = icb_df
-                    top_icb = icb_df.groupby('row_name')['actual_cost'].sum().idxmax() if 'actual_cost' in icb_df.columns else "Unknown"
-                    st.session_state.current_icb_summary = f"{drug_name.title()} ICB data: {len(icb_df['row_name'].unique())} ICBs, top spender: {top_icb}"
                 
                 if not icb_df.empty and 'row_name' in icb_df.columns:
                     # Group by ICB and sum recent spending
@@ -685,7 +648,7 @@ DATA SOURCES:
                         x='actual_cost',
                         y='row_name',
                         orientation='h',
-                        title=f"Top 10 ICBs by {drug_name.title()} Spending (Last 6 months)",
+                        title=f"Top 10 ICBs by {drug_name} Spending (Last 6 months)",
                         labels={'actual_cost': 'Total Cost (£)', 'row_name': 'ICB'}
                     )
                     fig.update_layout(height=500)
@@ -703,10 +666,10 @@ DATA SOURCES:
                     st.warning("No ICB data available for this drug.")
             
             with tab3:
-                st.subheader(f"📈 {drug_name.title()} Trends & Analysis")
+                st.subheader(f"📈 {drug_name} Trends & Analysis")
                 
                 # Get longer trend data
-                trend_df = get_total_spending_trend(bnf_code, months=24)
+                trend_df = get_total_spending_trend(search_term, months=24)
                 
                 if not trend_df.empty and 'date' in trend_df.columns:
                     # Items vs Cost trend
@@ -731,7 +694,7 @@ DATA SOURCES:
                         ))
                     
                     fig.update_layout(
-                        title=f"{drug_name.title()} - Cost vs Volume Trend",
+                        title=f"{drug_name} - Cost vs Volume Trend",
                         xaxis_title="Date",
                         yaxis=dict(title="Cost (£)", side="left"),
                         yaxis2=dict(title="Number of Items", side="right", overlaying="y"),
@@ -758,73 +721,9 @@ DATA SOURCES:
                     
                 else:
                     st.warning("Insufficient trend data available for analysis.")
-            
-            with tab4:
-                st.subheader(f"📋 BNF Information - {drug_name.title()}")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("### 🔢 BNF Code Breakdown")
-                    st.code(f"""
-BNF Code: {bnf_code}
-
-Chapter:     {bnf_code[:2]} - {bnf_categories.get(bnf_code[:2], 'Unknown')}
-Section:     {bnf_code[:4]}
-Subsection:  {bnf_code[:6]}  
-Paragraph:   {bnf_code[:7]}
-Chemical:    {bnf_code[:9]}
-Product:     {bnf_code}
-                    """)
-                
-                with col2:
-                    st.markdown("### 📖 Drug Classification")
-                    st.write(f"**Primary Category:** {category}")
-                    st.write(f"**Generic Name:** {drug_name.title()}")
-                    
-                    # Additional info based on category
-                    if "TNF Alpha Inhibitor" in category:
-                        st.info("🔬 **High-cost biologic** used for autoimmune conditions like rheumatoid arthritis, inflammatory bowel disease")
-                    elif "Statin" in category:
-                        st.info("💊 **Cholesterol-lowering medication** for cardiovascular disease prevention")
-                    elif "Diabetes" in category:
-                        st.info("🩺 **Diabetes medication** for blood glucose control")
-                    elif "Antibiotic" in category:
-                        st.info("🦠 **Antimicrobial medication** for treating bacterial infections")
-                
-                # BNF Chapter overview
-                st.markdown("### 📚 BNF Chapter Overview")
-                chapter_info = {
-                    '01': 'Includes antacids, antiemetics, laxatives, antidiarrhoeals',
-                    '02': 'Includes ACE inhibitors, beta blockers, diuretics, statins',
-                    '03': 'Includes bronchodilators, corticosteroids, antihistamines',
-                    '04': 'Includes analgesics, antidepressants, antiepileptics',
-                    '05': 'Includes antibiotics, antifungals, antivirals',
-                    '06': 'Includes diabetes medications, thyroid hormones, corticosteroids',
-                    '08': 'Includes cytotoxic drugs, immunosuppressants, biologics',
-                    '09': 'Includes vitamins, minerals, blood products',
-                    '10': 'Includes NSAIDs, disease-modifying drugs, muscle relaxants'
-                }
-                
-                if chapter in chapter_info:
-                    st.write(chapter_info[chapter])
-                
-                # Quick BNF search
-                st.markdown("### 🔍 Quick BNF Search")
-                other_drugs_in_chapter = [(name, code, cat) for name, (code, cat) in get_bnf_lookup().items() if code.startswith(chapter) and name != drug_name]
-                
-                if other_drugs_in_chapter:
-                    st.write(f"**Other drugs in Chapter {chapter}:**")
-                    for name, code, cat in other_drugs_in_chapter[:5]:  # Show first 5
-                        if st.button(f"🔍 {name.title()}", key=f"related_{name}"):
-                            st.session_state.current_drug = name
-                            st.rerun()
-                    
-                    if len(other_drugs_in_chapter) > 5:
-                        st.write(f"...and {len(other_drugs_in_chapter) - 5} more")
                     
         else:
-            st.error(f"❌ Drug '{query}' not found in our database. Try: adalimumab, infliximab, metformin, atorvastatin")
+            st.error(f"❌ No prescribing data found for '{query}'. This drug may not be prescribed in primary care or the name might need adjustment.")
 
 # Information section
 st.markdown("---")
