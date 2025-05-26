@@ -359,20 +359,49 @@ with tab2:
     if st.button("📊 Load Sample Data", type="primary"):
         sample_df = create_sample_data()
         
-        # Store sample data
+        # Store sample data with persistence flag
         st.session_state.uploaded_epact_data = sample_df
         st.session_state.upload_timestamp = datetime.now()
         st.session_state.is_sample_data = True
-        
-        st.success("✅ Sample ePACT2 data loaded successfully!")
-        
-        # Show preview
-        st.subheader("👀 Sample Data Preview")
-        st.dataframe(sample_df.head(10), use_container_width=True)
+        st.session_state.data_loaded = True  # Flag to persist data
         
         # Quick analysis
         analysis = analyze_epact_data(sample_df)
         st.session_state.epact_analysis = analysis
+        
+        # Create comprehensive context for Claude
+        st.session_state.comprehensive_context = f"""
+Sample ePACT2 Data Analysis:
+
+DATASET OVERVIEW:
+- Total Records: {len(sample_df):,}
+- Date Range: {sample_df['Prescription Date'].min()} to {sample_df['Prescription Date'].max()}
+- Unique Drugs: {sample_df['Drug Name'].nunique()}
+- Total Cost: £{analysis['cost_summary']['total']:,.2f}
+- Average Cost per Prescription: £{analysis['cost_summary']['average']:.2f}
+
+TOP PRESCRIBED DRUGS:
+{chr(10).join([f"- {drug}: {count:,} prescriptions" for drug, count in analysis['top_drugs']['data'].head(5).items()])}
+
+DATA QUALITY:
+- Missing Values: {analysis['data_quality']['missing_values']}
+- Duplicate Rows: {analysis['data_quality']['duplicate_rows']}
+- Data Completeness: {100 - (analysis['data_quality']['missing_values'] / (len(sample_df) * len(sample_df.columns))) * 100:.1f}%
+
+This is sample demonstration data showing typical ePACT2 prescription patterns.
+"""
+        
+        st.success("✅ Sample ePACT2 data loaded successfully!")
+        st.rerun()  # Refresh to show the data
+    
+    # Show sample data if it exists (even after rerun)
+    if hasattr(st.session_state, 'is_sample_data') and st.session_state.is_sample_data and hasattr(st.session_state, 'uploaded_epact_data'):
+        sample_df = st.session_state.uploaded_epact_data
+        analysis = st.session_state.epact_analysis
+        
+        # Show preview
+        st.subheader("👀 Sample Data Preview")
+        st.dataframe(sample_df.head(10), use_container_width=True)
         
         col1, col2, col3 = st.columns(3)
         
@@ -398,6 +427,24 @@ with tab2:
                 title="Sample Data - Top 5 Drugs by Prescription Count"
             )
             st.plotly_chart(fig, use_container_width=True)
+        
+        # Action buttons for sample data
+        st.subheader("🚀 Next Steps with Sample Data")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🤖 Analyze with AI", type="primary", use_container_width=True, key="sample_ai"):
+                st.session_state.claude_context_refresh = datetime.now().isoformat()
+                st.success("✅ Sample data ready for Claude analysis! Ask questions in the sidebar.")
+        
+        with col2:
+            if st.button("📊 Create Dashboard", use_container_width=True, key="sample_dashboard"):
+                st.switch_page("pages/03_📈_Analytics_Dashboard.py")
+        
+        with col3:
+            if st.button("💾 Export Sample Data", use_container_width=True, key="sample_export"):
+                st.switch_page("pages/05_💾_Export_Results.py")
 
 with tab3:
     st.markdown("### 🔗 Direct API Connection (Coming Soon)")
