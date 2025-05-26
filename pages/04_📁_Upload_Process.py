@@ -312,4 +312,211 @@ with tab1:
                 if analysis['date_range']:
                     try:
                         df_copy = df.copy()
-                        df_copy[analysis['date_range']['column']] = pd.to_datetime(df_
+                        df_copy[analysis['date_range']['column']] = pd.to_datetime(df_copy[analysis['date_range']['column']])
+                        df_copy['month'] = df_copy[analysis['date_range']['column']].dt.to_period('M')
+                        monthly_costs = df_copy.groupby('month')[cost_col].sum().reset_index()
+                        monthly_costs['month'] = monthly_costs['month'].astype(str)
+                        
+                        fig_trend = px.line(
+                            monthly_costs,
+                            x='month',
+                            y=cost_col,
+                            title="Monthly Spending Trend",
+                            labels={cost_col: 'Cost (£)', 'month': 'Month'}
+                        )
+                        fig_trend.update_layout(height=400)
+                        st.plotly_chart(fig_trend, use_container_width=True)
+                        
+                    except Exception as e:
+                        st.warning(f"Could not create trend analysis: {str(e)}")
+            
+            # Action buttons
+            st.subheader("🚀 Next Steps")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("🤖 Get AI Insights", type="primary", use_container_width=True):
+                    st.session_state.claude_context_refresh = datetime.now().isoformat()
+                    st.success("✅ Data context updated for Claude! Ask questions in the sidebar.")
+            
+            with col2:
+                if st.button("📊 Create Dashboard", use_container_width=True):
+                    st.switch_page("pages/03_📈_Analytics_Dashboard.py")
+            
+            with col3:
+                if st.button("💾 Export Results", use_container_width=True):
+                    st.switch_page("pages/05_💾_Export_Results.py")
+            
+        except Exception as e:
+            st.error(f"❌ Error reading file: {str(e)}")
+            st.info("Please check your file format and try again.")
+
+with tab2:
+    st.markdown("### Try Sample ePACT2 Data")
+    st.info("👆 No ePACT2 data? Try our sample dataset to explore the platform features!")
+    
+    if st.button("📊 Load Sample Data", type="primary"):
+        sample_df = create_sample_data()
+        
+        # Store sample data
+        st.session_state.uploaded_epact_data = sample_df
+        st.session_state.upload_timestamp = datetime.now()
+        st.session_state.is_sample_data = True
+        
+        st.success("✅ Sample ePACT2 data loaded successfully!")
+        
+        # Show preview
+        st.subheader("👀 Sample Data Preview")
+        st.dataframe(sample_df.head(10), use_container_width=True)
+        
+        # Quick analysis
+        analysis = analyze_epact_data(sample_df)
+        st.session_state.epact_analysis = analysis
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Sample Records", f"{len(sample_df):,}")
+        
+        with col2:
+            if analysis['cost_summary']:
+                st.metric("Total Cost", f"£{analysis['cost_summary']['total']:,.0f}")
+        
+        with col3:
+            st.metric("Unique Drugs", sample_df['Drug Name'].nunique())
+        
+        # Sample data insights
+        if analysis['top_drugs'] and analysis['top_drugs']['data'] is not None:
+            top_drugs_df = analysis['top_drugs']['data'].head(5).reset_index()
+            top_drugs_df.columns = ['Drug', 'Prescriptions']
+            
+            fig = px.pie(
+                top_drugs_df,
+                values='Prescriptions',
+                names='Drug',
+                title="Sample Data - Top 5 Drugs by Prescription Count"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+with tab3:
+    st.markdown("### 🔗 Direct API Connection (Coming Soon)")
+    
+    st.info("🚧 **Future Feature**: Direct connection to ePACT2 API for real-time data analysis")
+    
+    st.markdown("""
+    **Planned Features:**
+    
+    - 🔐 **Secure Authentication**: NHS login integration
+    - 🔄 **Real-time Updates**: Automatic data refresh
+    - 📅 **Scheduled Reports**: Automated analysis delivery
+    - 🎯 **Custom Filters**: Practice/CCG/drug-specific views
+    - 📱 **Mobile Access**: Responsive design for tablets
+    
+    **Benefits:**
+    - No manual exports needed
+    - Always up-to-date data
+    - Reduced administrative burden
+    - Faster insights
+    """)
+    
+    # Future connection form (placeholder)
+    with st.form("api_connection_form"):
+        st.markdown("**Register Interest in API Connection:**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            organization = st.text_input("NHS Organization")
+            role = st.selectbox("Your Role", [
+                "Medicines Optimization Pharmacist",
+                "CCG/ICB Analyst", 
+                "Practice Manager",
+                "GP",
+                "Other"
+            ])
+        
+        with col2:
+            email = st.text_input("Email Address")
+            use_case = st.text_area("Primary Use Case", placeholder="e.g., Monthly drug spend analysis...")
+        
+        submitted = st.form_submit_button("📧 Register Interest")
+        
+        if submitted:
+            if organization and email:
+                st.success("✅ Thank you! We'll contact you when API access is available.")
+            else:
+                st.error("Please fill in organization and email fields.")
+
+# Help section
+st.markdown("---")
+st.header("❓ Need Help?")
+
+with st.expander("🔧 Troubleshooting Upload Issues"):
+    st.markdown("""
+    **Common Issues:**
+    
+    1. **File too large**: ePACT2 exports can be large. Try filtering to smaller date ranges.
+    
+    2. **Wrong format**: Ensure you're uploading the CSV export from ePACT2, not a screenshot or PDF.
+    
+    3. **Special characters**: Some drug names contain special characters that may cause issues.
+    
+    4. **Date formats**: Various date formats are supported, but MM/DD/YYYY works best.
+    
+    **Getting ePACT2 Data:**
+    1. Log into NHS BSA ePACT2 portal
+    2. Set your analysis parameters (date range, practice, etc.)
+    3. Export as CSV
+    4. Upload here for AI analysis
+    """)
+
+with st.expander("📋 Supported Data Formats"):
+    st.markdown("""
+    **Column Names We Look For:**
+    
+    **Date Columns:**
+    - Prescription Date, Date, Month, Period
+    
+    **Cost Columns:**
+    - Net Ingredient Cost, Cost, Spend, Amount, Value
+    
+    **Drug Columns:**
+    - Drug Name, Product, BNF Description, Item
+    
+    **Other Useful Columns:**
+    - BNF Code, Practice Code, CCG Code, ICB Code, Items, Quantity
+    
+    **File Requirements:**
+    - Format: CSV or Excel (.xlsx)
+    - Size: Up to 200MB
+    - Encoding: UTF-8 preferred
+    """)
+
+with st.expander("🤖 How Claude AI Helps"):
+    st.markdown("""
+    **Claude can analyze your data and help with:**
+    
+    - 📊 **Trend Identification**: Spot increasing/decreasing costs
+    - 🔍 **Anomaly Detection**: Identify unusual prescribing patterns  
+    - 💡 **Cost Optimization**: Suggest biosimilar opportunities
+    - 📈 **Forecasting**: Predict future spending patterns
+    - 📋 **Reporting**: Generate insights for meetings
+    - ❓ **Q&A**: Answer specific questions about your data
+    
+    **Getting Started:**
+    1. Upload your data above
+    2. Click "Get AI Insights" 
+    3. Ask Claude questions in the sidebar
+    4. Get instant, contextual analysis
+    """)
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; color: #666; font-size: 0.9rem;">
+🔒 **Data Security**: Your ePACT2 data is processed securely and never stored permanently. 
+All analysis happens in your browser session only. | 
+<a href="mailto:support@nhsdatahub.co.uk">Get Support</a>
+</div>
+""", unsafe_allow_html=True)
