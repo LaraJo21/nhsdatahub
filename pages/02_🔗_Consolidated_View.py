@@ -182,7 +182,7 @@ def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
     
     # 2. ICB regional analysis
     icb_df = get_drug_spending_by_icb(bnf_code, months=12)
-    if not icb_df.empty and 'name' in icb_df.columns:
+    if not icb_df.empty and 'row_name' in icb_df.columns:
         # Group by ICB and calculate totals
         icb_summary = icb_df.groupby('name').agg({
             'actual_cost': 'sum',
