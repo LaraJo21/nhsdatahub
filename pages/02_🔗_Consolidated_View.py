@@ -139,25 +139,116 @@ def search_drugs(query):
     
     return matches
 
+@st.cache_data(ttl=3600)  
+def get_enhanced_drug_analysis(bnf_code, drug_name, months=36):
+    """Get comprehensive drug analysis data for Claude"""
+    
+    analysis = {
+        "drug_name": drug_name,
+        "bnf_code": bnf_code,
+        "analysis_date": datetime.now().isoformat(),
+        "data_sources": []
+    }
+    
+    # 1. Extended trend data (3 years)
+    trend_df = get_total_spending_trend(bnf_code, months=months)
+    if not trend_df.empty:
+        analysis["trend_data"] = {
+            "months_of_data": len(trend_df),
+            "date_range": f"{trend_df['date'].min().strftime('%Y-%m')} to {trend_df['date'].max().strftime('%Y-%m')}",
+            "latest_cost": float(trend_df['actual_cost'].iloc[-1]) if 'actual_cost' in trend_df.columns else 0,
+            "latest_items": float(trend_df['items'].iloc[-1]) if 'items' in trend_df.columns else 0
+        }
+        
+        # Calculate trend metrics
+        if len(trend_df) >= 2 and 'actual_cost' in trend_df.columns:
+            recent_cost = trend_df['actual_cost'].iloc[-1]
+            previous_cost = trend_df['actual_cost'].iloc[-2]
+            analysis["trend_data"]["mom_change_pct"] = ((recent_cost - previous_cost) / previous_cost) * 100
+            
+            # Year-over-year if available
+            if len(trend_df) >= 12:
+                yoy_cost = trend_df['actual_cost'].iloc[-13]
+                analysis["trend_data"]["yoy_change_pct"] = ((recent_cost - yoy_cost) / yoy_cost) * 100
+            
+            # Overall trend direction
+            if len(trend_df) >= 6:
+                recent_avg = trend_df['actual_cost'].tail(6).mean()
+                older_avg = trend_df['actual_cost'].head(6).mean()
+                trend_direction = "increasing" if recent_avg > older_avg * 1.1 else "decreasing" if recent_avg < older_avg * 0.9 else "stable"
+                analysis["trend_data"]["overall_trend"] = trend_direction
+        
+        analysis["data_sources"].append("OpenPrescribing trend data (36 months)")
+    
+    # 2. ICB regional analysis
+    icb_df = get_drug_spending_by_icb(bnf_code, months=12)
+    if not icb_df.empty and 'name' in icb_df.columns:
+        # Group by ICB and calculate totals
+        icb_summary = icb_df.groupby('name').agg({
+            'actual_cost': 'sum',
+            'items': 'sum'
+        }).reset_index()
+        
+        if not icb_summary.empty:
+            analysis["regional_data"] = {
+                "total_icbs": len(icb_summary),
+                "highest_spending_icb": icb_summary.loc[icb_summary['actual_cost'].idxmax(), 'name'],
+                "highest_spending_amount": float(icb_summary['actual_cost'].max()),
+                "lowest_spending_icb": icb_summary.loc[icb_summary['actual_cost'].idxmin(), 'name'],
+                "lowest_spending_amount": float(icb_summary['actual_cost'].min()),
+                "national_total_cost": float(icb_summary['actual_cost'].sum()),
+                "national_total_items": float(icb_summary['items'].sum()),
+                "average_icb_cost": float(icb_summary['actual_cost'].mean()),
+                "median_icb_cost": float(icb_summary['actual_cost'].median())
+            }
+            
+            # Find Derby ICB specifically if it exists
+            derby_icbs = icb_summary[icb_summary['name'].str.contains('Derby', case=False, na=False)]
+            if not derby_icbs.empty:
+                derby_cost = float(derby_icbs['actual_cost'].iloc[0])
+                national_avg = analysis["regional_data"]["average_icb_cost"]
+                analysis["regional_data"]["derby_vs_national"] = {
+                    "derby_cost": derby_cost,
+                    "vs_average_pct": ((derby_cost - national_avg) / national_avg) * 100,
+                    "percentile_rank": float((icb_summary['actual_cost'] <= derby_cost).mean() * 100)
+                }
+        
+        analysis["data_sources"].append("OpenPrescribing ICB data (12 months)")
+    
+    # 3. Seasonal analysis if we have enough data
+    if not trend_df.empty and len(trend_df) >= 12 and 'date' in trend_df.columns:
+        trend_df_copy = trend_df.copy()
+        trend_df_copy['month'] = trend_df_copy['date'].dt.month
+        trend_df_copy['quarter'] = trend_df_copy['date'].dt.quarter
+        
+        if 'actual_cost' in trend_df_copy.columns:
+            monthly_avg = trend_df_copy.groupby('month')['actual_cost'].mean()
+            quarterly_avg = trend_df_copy.groupby('quarter')['actual_cost'].mean()
+            
+            analysis["seasonal_patterns"] = {
+                "highest_spending_month": int(monthly_avg.idxmax()),
+                "lowest_spending_month": int(monthly_avg.idxmin()),
+                "highest_spending_quarter": int(quarterly_avg.idxmax()),
+                "seasonal_variation_pct": float(((monthly_avg.max() - monthly_avg.min()) / monthly_avg.mean()) * 100)
+            }
+    
+    return analysis
+
 @st.cache_data(ttl=3600)
-def get_bnf_categories():
-    """Get BNF chapter information"""
+def get_related_drugs_context(bnf_code):
+    """Get context about related drugs in the same BNF chapter"""
+    chapter = bnf_code[:2]
+    bnf_lookup = get_bnf_lookup()
+    
+    related_drugs = []
+    for name, (code, category) in bnf_lookup.items():
+        if code.startswith(chapter) and code != bnf_code:
+            related_drugs.append({"name": name, "bnf_code": code, "category": category})
+    
     return {
-        '01': 'Gastro-Intestinal System',
-        '02': 'Cardiovascular System', 
-        '03': 'Respiratory System',
-        '04': 'Central Nervous System',
-        '05': 'Infections',
-        '06': 'Endocrine System',
-        '07': 'Obstetrics, Gynaecology, and Urinary-Tract Disorders',
-        '08': 'Malignant Disease and Immunosuppression',
-        '09': 'Nutrition and Blood',
-        '10': 'Musculoskeletal and Joint Diseases',
-        '11': 'Eye',
-        '12': 'Ear, Nose, and Oropharynx',
-        '13': 'Skin',
-        '14': 'Immunological Products and Vaccines',
-        '15': 'Anaesthesia'
+        "bnf_chapter": chapter,
+        "related_drugs": related_drugs[:5],  # Top 5 related
+        "bnf_categories": get_bnf_categories()
     }
 
 @st.cache_data(ttl=3600)
@@ -261,6 +352,48 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
         
         if matches:
             drug_name, bnf_code, category = matches[0]  # Take first match
+            
+            # Get enhanced analysis for Claude
+            with st.spinner("🔍 Gathering comprehensive data..."):
+                enhanced_analysis = get_enhanced_drug_analysis(bnf_code, drug_name)
+                related_context = get_related_drugs_context(bnf_code)
+                
+                # Store for Claude
+                st.session_state.current_drug_analysis = enhanced_analysis
+                st.session_state.related_drugs_context = related_context
+                st.session_state.comprehensive_context = f"""
+Comprehensive Analysis for {drug_name.title()}:
+
+DRUG INFORMATION:
+- BNF Code: {bnf_code}
+- Category: {category}
+- BNF Chapter: {related_context['bnf_chapter']} - {related_context['bnf_categories'].get(related_context['bnf_chapter'], 'Unknown')}
+
+SPENDING TRENDS:
+{f"- Data Period: {enhanced_analysis['trend_data']['date_range']}" if 'trend_data' in enhanced_analysis else "- No trend data available"}
+{f"- Latest Monthly Cost: £{enhanced_analysis['trend_data']['latest_cost']:,.0f}" if 'trend_data' in enhanced_analysis else ""}
+{f"- Latest Monthly Items: {enhanced_analysis['trend_data']['latest_items']:,.0f}" if 'trend_data' in enhanced_analysis else ""}
+{f"- Month-on-Month Change: {enhanced_analysis['trend_data']['mom_change_pct']:+.1f}%" if 'trend_data' in enhanced_analysis and 'mom_change_pct' in enhanced_analysis['trend_data'] else ""}
+{f"- Year-on-Year Change: {enhanced_analysis['trend_data']['yoy_change_pct']:+.1f}%" if 'trend_data' in enhanced_analysis and 'yoy_change_pct' in enhanced_analysis['trend_data'] else ""}
+{f"- Overall Trend: {enhanced_analysis['trend_data']['overall_trend'].title()}" if 'trend_data' in enhanced_analysis and 'overall_trend' in enhanced_analysis['trend_data'] else ""}
+
+REGIONAL ANALYSIS:
+{f"- Total ICBs: {enhanced_analysis['regional_data']['total_icbs']}" if 'regional_data' in enhanced_analysis else "- No regional data available"}
+{f"- Highest Spending ICB: {enhanced_analysis['regional_data']['highest_spending_icb']} (£{enhanced_analysis['regional_data']['highest_spending_amount']:,.0f})" if 'regional_data' in enhanced_analysis else ""}
+{f"- Lowest Spending ICB: {enhanced_analysis['regional_data']['lowest_spending_icb']} (£{enhanced_analysis['regional_data']['lowest_spending_amount']:,.0f})" if 'regional_data' in enhanced_analysis else ""}
+{f"- National Average ICB Cost: £{enhanced_analysis['regional_data']['average_icb_cost']:,.0f}" if 'regional_data' in enhanced_analysis else ""}
+{f"- Derby vs National Average: {enhanced_analysis['regional_data']['derby_vs_national']['vs_average_pct']:+.1f}% (£{enhanced_analysis['regional_data']['derby_vs_national']['derby_cost']:,.0f})" if 'regional_data' in enhanced_analysis and 'derby_vs_national' in enhanced_analysis['regional_data'] else ""}
+
+SEASONAL PATTERNS:
+{f"- Highest Spending Month: {enhanced_analysis['seasonal_patterns']['highest_spending_month']}" if 'seasonal_patterns' in enhanced_analysis else "- Insufficient data for seasonal analysis"}
+{f"- Seasonal Variation: {enhanced_analysis['seasonal_patterns']['seasonal_variation_pct']:.1f}%" if 'seasonal_patterns' in enhanced_analysis else ""}
+
+RELATED DRUGS IN SAME CATEGORY:
+{', '.join([drug['name'].title() for drug in related_context['related_drugs'][:3]])}
+
+DATA SOURCES:
+{', '.join(enhanced_analysis['data_sources'])}
+"""
             
             # Display drug information
             col1, col2, col3 = st.columns([2, 1, 1])
