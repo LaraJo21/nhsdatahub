@@ -573,7 +573,7 @@ DATA SOURCES:
             with col1:
                 st.success(f"✅ **{drug_name}**")
             with col2:
-                st.info(f"**Source:** {source}")
+                st.info(f"**Source:** {search_term}")
             
             # Create tabs for different views
             tab1, tab2, tab3 = st.tabs(["📊 Spending Overview", "🗺️ Regional Analysis", "📈 Trends"])
