@@ -54,12 +54,13 @@ def get_bnf_lookup():
         'warfarin': ('0208020W0', 'Anticoagulant'),
         'clopidogrel': ('0209000C0', 'Antiplatelet'),
         
-        # Central Nervous System (04)
+        # Central Nervous System (04) - Corrected with actual OpenPrescribing codes
         'paracetamol': ('0407010Q0', 'Analgesic'),
-        'morphine': ('0407020Q0', 'Opioid Analgesic'),
+        'morphine': ('0407020Q0', 'Opioid Analgesic'), 
         'tramadol': ('0407020T0', 'Opioid Analgesic'),
-        'sertraline': ('0403030S0', 'SSRI Antidepressant'),
+        'sertraline': ('0403030Q0', 'SSRI Antidepressant'),  # Corrected code
         'fluoxetine': ('0403030F0', 'SSRI Antidepressant'),
+        'citalopram': ('0403030C0', 'SSRI Antidepressant'),
         'lorazepam': ('0401020L0', 'Benzodiazepine'),
         
         # Infections (05)
@@ -410,9 +411,25 @@ if hasattr(st.session_state, 'search_performed') and st.session_state.search_per
             # Debug: Show what we're using
             st.write(f"🔍 DEBUG: Using BNF code '{bnf_code}' for '{drug_name}'")
             
+            # Debug: Test direct name search
+            st.write("🔍 DEBUG: Testing direct name search...")
+            name_url = f"https://openprescribing.net/api/1.0/spending/?q={query}&format=json"
+            st.write(f"🔍 DEBUG: Name search URL: {name_url}")
+            
+            try:
+                response = requests.get(name_url, timeout=10)
+                st.write(f"🔍 DEBUG: Name search status: {response.status_code}")
+                if response.status_code == 200:
+                    name_data = response.json()
+                    st.write(f"🔍 DEBUG: Name search returned {len(name_data)} records")
+                    if name_data:
+                        st.write(f"🔍 DEBUG: Name search sample: {name_data[0]}")
+            except Exception as e:
+                st.write(f"🔍 DEBUG: Name search exception: {str(e)}")
+            
             # Debug: Test the API URL
             test_url = f"https://openprescribing.net/api/1.0/spending/?code={bnf_code}&format=json"
-            st.write(f"🔍 DEBUG: API URL: {test_url}")
+            st.write(f"🔍 DEBUG: BNF Code API URL: {test_url}")
             
             # Debug: Test the API call directly
             try:
