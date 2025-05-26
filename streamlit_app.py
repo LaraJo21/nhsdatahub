@@ -2,11 +2,27 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# Import Claude integration
+try:
+    from utils.claude_integration import render_claude_sidebar
+    claude_available = True
+except ImportError:
+    claude_available = False
+
 st.set_page_config(
     page_title="NHS Data Hub",
     page_icon="🏥",
     layout="wide"
 )
+
+# Set current page for Claude context
+st.session_state.current_page = "Home"
+
+# Render Claude sidebar if available
+if claude_available:
+    render_claude_sidebar()
+else:
+    st.sidebar.error("Claude integration not available. Check utils/claude_integration.py")
 
 # Custom CSS for better styling
 st.markdown("""
